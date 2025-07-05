@@ -8,9 +8,12 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class ProfileResponse {
+public class ServerResponse {
 
     private String message;
     private String respCode;
     private Object Data;
+
+
+
 }

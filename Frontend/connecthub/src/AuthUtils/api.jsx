@@ -55,7 +55,7 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   async (response) => {
-    await delay(2000);
+    await delay(1000);
     requests--;
     if (requests === 0) {
       hideCustomLoader();
@@ -64,7 +64,7 @@ api.interceptors.response.use(
     return response;
   },
   async (error) => {
-    await delay(2000);
+    await delay(1000);
     requests--;
     if (requests === 0) {
       hideCustomLoader();

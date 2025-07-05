@@ -1,28 +1,41 @@
 package org.BackEndApp.features.profile.model;
 
 import java.time.LocalDate;
+import java.util.List;
 
 public record ProfileDataRequest(
-        String fullName,
-        String headline,
-        String summary,
-        boolean showPhoneNumber,
-        String phone,
-        String address,
-        String city,
-        String country,
-        String postalCode,
-        String linkedinUrl,
-        String githubUrl,
-        String websiteUrl,
+        BasicProfile basicProfile,
+        List<Education> educationList,
+        List<Experience> experienceList
+) {
 
+    public record BasicProfile(
+            String headline, // headline
+            String summary,// (about)
+            String phone,
+            String country,
+            String linkedinUrl,
+            String githubUrl,
+            String websiteUrl
+    ) {}
 
-        // education details
-        String degree,
-        String collegeName,
-        LocalDate startDate,
-        LocalDate endDate,
-        String grade,
-        String description
-        ) {
+    public record Education(
+            String degree,
+            String collegeName,
+            LocalDate startDate,
+            LocalDate endDate,
+            String grade,
+            String description,
+            Long id
+    ) {}
+
+    public record Experience(
+            String experienceTitle, //title
+            String experienceCompany, //company
+            String experienceLocation, //location
+            String experienceStartDate, //startDate
+            String experienceEndDate, //endDate
+            boolean currentlyWorking,
+            String experienceDescription //description
+    ) {}
 }

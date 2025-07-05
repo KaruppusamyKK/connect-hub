@@ -1,7 +1,23 @@
-import { useEffect, useState } from "react"; import { Edit3, Plus, X, Save, MapPin, Mail, Phone, Globe, Linkedin, Github, Briefcase, GraduationCap, Award, Calendar, Building } from "lucide-react";
+import { useEffect, useState } from "react"; import { Edit3, Plus, X, Save, MapPin, Mail, Phone, Globe, Linkedin, Github, Briefcase, GraduationCap, Award, Calendar, Building, Check, UploadCloud } from "lucide-react";
 import apiService from '../AuthUtils/apiService.jsx';
+import { isResponseOk } from "../utils/ResponseUtil.jsx";
+import { toast } from "sonner";
+import { mapEducationToBackendPayload, mapProfileToBackendPayload } from "../mapper/Mapper.jsx";
 
 export default function LinkedInProfile() {
+
+  const [changedFields, setChangedFields] = useState({});
+  const [allChangedProfileFields, setAllChangedProfileField] = useState({});
+  const [allChangedExperienceFields, setAllChangedExperienceFields] = useState({});
+  const [allChangedEducationFields, setAllChangedEducationFields] = useState({});
+  const [educationID, setEducationId] = useState('');
+  const [profileImage, setProfileImage] = useState(null);
+
+
+
+  const getImageSrc = (base64) => {
+    return base64 ? `data:image/jpeg;base64,${base64}` : "https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg";
+  };
 
 
 
@@ -23,60 +39,40 @@ export default function LinkedInProfile() {
   });
 
 
-
-
-
-
-
-  // Experience state
-  const [experiences, setExperiences] = useState([
-    {
-      id: 1,
-      title: "Senior Software Engineer",
-      company: "Tech Corp",
-      location: "San Francisco, CA",
-      startDate: "Jan 2022",
-      endDate: "Present",
-      current: true,
-      description:
-        "Lead development of microservices architecture, mentor junior developers, and collaborate with cross-functional teams.",
-    },
-    {
-      id: 2,
-      title: "Software Engineer",
-      company: "StartupXYZ",
-      location: "Remote",
-      startDate: "Jun 2020",
-      endDate: "Dec 2021",
-      current: false,
-      description:
-        "Developed full-stack web applications using React and Node.js. Improved application performance by 40%.",
-    },
-  ])
-
-
   const [education, setEducation] = useState([]);
+  const [experiences, setExperiences] = useState([]);
 
+
+  const fetchProfile = async () => {
+    try {
+      const response = await apiService.getProfileDetails();
+      const data = response.data.data;
+      setProfileDetails(data);
+      setEducation(data.educationList);
+      setExperiences(data.experienceList);
+      const imageData = data.profileImage;
+      if (imageData?.profileImage && imageData?.contentType) {
+        const imageSrc = `data:${imageData.contentType};base64,${imageData.profileImage}`;
+        setProfileImage(imageSrc);
+      } else {
+        setProfileImage(null);
+      }
+
+
+
+      console.log("Profile Response:", response.data.data);
+    } catch (error) {
+      console.error("Error fetching profile:", error);
+    }
+  };
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const response = await apiService.getProfileDetails();
-        const data = response.data.data;
-        setProfileDetails(data);
-        setEducation(data.educationList);
-        console.log("Profile Response:", response.data.data);
-      } catch (error) {
-        console.error("Error fetching profile:", error);
-      }
-    };
-
     fetchProfile();
   }, []);
 
 
 
-  // Skills state
+
   const [skills, setSkills] = useState([
     "JavaScript",
     "React",
@@ -90,7 +86,7 @@ export default function LinkedInProfile() {
     "Agile",
   ])
 
-  // Edit states
+
   const [editingProfile, setEditingProfile] = useState(false)
   const [editingAbout, setEditingAbout] = useState(false)
   const [editingContact, setEditingContact] = useState(false)
@@ -107,48 +103,185 @@ export default function LinkedInProfile() {
 
 
   const handleEditProfile = () => {
-    console.log(profileDetails.summary)
-    setTempProfile({
-      name: profileDetails.username,
-      headline: profileDetails.headline,
-      location: profileDetails.country,
-      summary: profileDetails.summary
+    setTempProfile(JSON.parse(JSON.stringify(profileDetails)));
+    setEditingProfile(true);
+  };
 
-    });
-    setEditingProfile(true)
-  }
 
   const handleSaveProfile = () => {
-    setProfileDetails(tempProfile)
-    setEditingProfile(false)
-  }
+    const updatedProfile = {
+      ...tempProfile,
+      username: tempProfile.username || tempProfile.name || ""
+    };
+
+    const newChanges = {};
+
+    Object.keys(profileDetails).forEach((key) => {
+      const oldValue = profileDetails[key];
+      const newValue = updatedProfile[key];
+
+      // Shallow check only; you can deep check if needed
+      const isObject = typeof newValue === "object" && newValue !== null;
+      const isEqual =
+        isObject
+          ? JSON.stringify(oldValue) === JSON.stringify(newValue)
+          : oldValue === newValue;
+
+      if (!isEqual) {
+        newChanges[key] = {
+          oldValue: oldValue,
+          newValue: newValue,
+        };
+      }
+    });
+
+    if (Object.keys(newChanges).length > 0) {
+
+      setChangedFields((prev) => ({
+        ...prev,
+        ...newChanges
+      }));
+
+      console.log("Updated Changed Fields:");
+      setAllChangedProfileField(prev => ({
+        ...prev,
+        ...changedFields,
+        ...newChanges
+      }));
+
+      console.table({
+        ...changedFields,
+        ...newChanges
+      });
+    } else {
+      console.log("No new fields changed in this edit.");
+    }
+
+    // Save changes to main profile
+    setProfileDetails(updatedProfile);
+    setEditingProfile(false);
+  };
+
+
+
 
   const handleCancelProfile = () => {
     setTempProfile(profileDetails)
     setEditingProfile(false)
   }
-
-  // About editing functions
   const handleEditAbout = () => {
-    setTempProfile({ ...tempProfile, summary: profileDetails.summary })
-    setEditingAbout(true)
-  }
+    const clonedProfile = JSON.parse(JSON.stringify(profileDetails));
+    setTempProfile(clonedProfile);
+    setEditingAbout(true);
+
+    console.log("📝 handleEditAbout triggered");
+    console.log("📋 Original Profile Details:", profileDetails);
+    console.log("🧪 Cloned Temp Profile for Editing:", clonedProfile);
+    console.log("✏️ Editing About:", clonedProfile.about || clonedProfile.summary || "(empty)");
+  };
 
   const handleSaveAbout = () => {
-    setProfileDetails({ ...profileDetails, about: tempProfile.about })
-    setEditingAbout(false)
-  }
+    const updatedAbout = (tempProfile.summary || "").trim();
+    const oldAbout = (profileDetails.summary || "").trim();
 
-  // Contact editing functions
+    if (updatedAbout !== oldAbout) {
+      const aboutChange = {
+        about: {
+          oldValue: oldAbout,
+          newValue: updatedAbout,
+        },
+      };
+
+      setChangedFields((prev) => ({
+        ...prev,
+        ...aboutChange,
+      }));
+
+      setAllChangedProfileField((prev) => ({
+        ...prev,
+        ...changedFields,
+        ...aboutChange,
+      }));
+
+      console.log("About field changed:");
+      console.table({
+        ...changedFields,
+        ...aboutChange,
+      });
+    } else {
+      console.log("No changes detected in the About field.");
+    }
+
+    setProfileDetails((prev) => ({
+      ...prev,
+      about: updatedAbout,
+    }));
+
+    setEditingAbout(false);
+  };
+
+
   const handleEditContact = () => {
-    setTempProfile(profileDetails)
-    setEditingContact(true)
-  }
+    const clonedProfile = JSON.parse(JSON.stringify(profileDetails));
+    setTempProfile(clonedProfile);
+    setEditingContact(true);
+
+
+  };
+
 
   const handleSaveContact = () => {
-    setProfileDetails(tempProfile)
-    setEditingContact(false)
-  }
+    const updatedProfile = {
+      ...tempProfile,
+    };
+
+    const newChanges = {};
+
+    Object.keys(profileDetails).forEach((key) => {
+      const oldValue = profileDetails[key];
+      const newValue = updatedProfile[key];
+
+      const isObject = typeof newValue === "object" && newValue !== null;
+      const isEqual = isObject
+        ? JSON.stringify(oldValue) === JSON.stringify(newValue)
+        : oldValue === newValue;
+
+      if (!isEqual) {
+        newChanges[key] = {
+          oldValue,
+          newValue,
+        };
+      }
+    });
+
+    if (Object.keys(newChanges).length > 0) {
+      setChangedFields((prev) => ({
+        ...prev,
+        ...newChanges,
+      }));
+
+      setAllChangedProfileField((prev) => ({
+        ...prev,
+        ...changedFields,
+        ...newChanges,
+      }));
+
+      console.log("📞 Contact field(s) changed:");
+      console.table({
+        ...changedFields,
+        ...newChanges,
+      });
+    } else {
+      console.log("✅ No changes detected in contact fields.");
+    }
+
+    setProfileDetails(updatedProfile);
+    setEditingContact(false);
+  };
+
+
+
+
 
   // Experience functions
   const handleAddExperience = () => {
@@ -175,26 +308,68 @@ export default function LinkedInProfile() {
   }
 
   const handleEditExperience = (exp) => {
-    setTempExperience(exp)
-    setEditingExperience(exp.id)
-  }
+    setTempExperience(JSON.parse(JSON.stringify(exp)));
+    setEditingExperience(exp.id);
+    console.log("🛠️ Editing Experience ID:", exp.id, exp);
+  };
 
   const handleSaveExperience = () => {
-    setExperiences(experiences.map((exp) => (exp.id === editingExperience ? tempExperience : exp)))
-    setEditingExperience(null)
-    setTempExperience({})
-  }
+    const originalExperience = experiences.find((exp) => exp.id === editingExperience);
+    const updatedExperience = tempExperience;
+
+    const newChanges = {};
+    Object.keys(originalExperience).forEach((key) => {
+      const oldValue = originalExperience[key];
+      const newValue = updatedExperience[key];
+
+      const isObject = typeof newValue === "object" && newValue !== null;
+      const isEqual = isObject
+        ? JSON.stringify(oldValue) === JSON.stringify(newValue)
+        : oldValue === newValue;
+
+      if (!isEqual) {
+        newChanges[key] = {
+          oldValue,
+          newValue,
+        };
+      }
+    });
+
+    if (Object.keys(newChanges).length > 0) {
+      setAllChangedExperienceFields((prev) => ({
+        ...prev,
+        [editingExperience]: {
+          ...(prev[editingExperience] || {}),
+          ...newChanges,
+        },
+      }));
+
+      console.log("✏️ Experience field(s) changed for ID:", editingExperience);
+      console.table(newChanges);
+    } else {
+      console.log("✅ No changes detected in the Experience.");
+    }
+
+
+    setExperiences((prev) =>
+      prev.map((exp) => (exp.id === editingExperience ? updatedExperience : exp))
+    );
+
+    setEditingExperience(null);
+    setTempExperience({});
+  };
+
 
   const handleDeleteExperience = (id) => {
     setExperiences(experiences.filter((exp) => exp.id !== id))
   }
 
-  // Education functions
+
   const handleAddEducation = () => {
     setTempEducation({
       school: "",
       degree: "",
-      field: "",
+      collegeName: "",
       startDate: "",
       endDate: "",
       description: "",
@@ -202,7 +377,7 @@ export default function LinkedInProfile() {
     setAddingEducation(true)
   }
 
-  const handleSaveNewEducation = () => {
+  const handleSaveNewEducation = async () => {
     const newEdu = {
       ...tempEducation,
       id: Date.now(),
@@ -210,24 +385,90 @@ export default function LinkedInProfile() {
     setEducation([newEdu, ...education])
     setAddingEducation(false)
     setTempEducation({})
+
+    console.log("nnnnnnnnnnnnnnnnnnnnnnnn", newEdu);
+    const { id, ...payloadWithoutId } = newEdu;
+    const response = await apiService.insertEducationDetails(payloadWithoutId);
+
+    if (isResponseOk(response)) {
+      toast.success(response.data.message || "");
+      setAllChangedProfileField({});
+    } else {
+      toast.error("Failed to save education.");
+    }
+    fetchProfile();
   }
 
   const handleEditEducation = (edu) => {
-    setTempEducation(edu)
-    setEditingEducation(edu.id)
-  }
+    setTempEducation(JSON.parse(JSON.stringify(edu)));
+    setEditingEducation(edu.id);
+
+  };
+
 
   const handleSaveEducation = () => {
-    setEducation(education.map((edu) => (edu.id === editingEducation ? tempEducation : edu)))
-    setEditingEducation(null)
-    setTempEducation({})
-  }
+    const original = education.find((edu) => edu.id === editingEducation);
+    const updated = tempEducation;
 
-  const handleDeleteEducation = (id) => {
+    const newChanges = {};
+
+    Object.keys(original).forEach((key) => {
+      const oldValue = original[key];
+      const newValue = updated[key];
+
+      const isObject = typeof newValue === "object" && newValue !== null;
+      const isEqual = isObject
+        ? JSON.stringify(oldValue) === JSON.stringify(newValue)
+        : oldValue === newValue;
+
+      if (!isEqual) {
+        newChanges[key] = {
+          oldValue,
+          newValue,
+        };
+      }
+    });
+
+    if (Object.keys(newChanges).length > 0) {
+      setAllChangedEducationFields((prev) => ({
+        ...prev,
+        [editingEducation]: {
+          ...(prev[editingEducation] || {}),
+          ...newChanges,
+        },
+      }));
+
+      console.log("📝 Education changes detected for ID:", editingEducation);
+      console.table(newChanges);
+    } else {
+      console.log("✅ No changes in Education for ID:", editingEducation);
+    }
+
+
+    setEducationId(editingEducation);
+    // Update the local education list
+    setEducation((prev) =>
+      prev.map((edu) => (edu.id === editingEducation ? updated : edu))
+    );
+
+    setEditingEducation(null);
+    setTempEducation({});
+  };
+
+
+  const handleDeleteEducation = async (id) => {
+    const response = await apiService.deleteEducationDetails(id);
+    if (isResponseOk(response)) {
+      toast.success(response.data.message || "");
+      setAllChangedProfileField({});
+    } else {
+      toast.error("Failed to delete education.");
+    }
     setEducation(education.filter((edu) => edu.id !== id))
+    fetchProfile();
   }
 
-  // Skills functions
+
   const handleAddSkill = () => {
     if (newSkill.trim() && !skills.includes(newSkill.trim())) {
       setSkills([...skills, newSkill.trim()])
@@ -239,6 +480,73 @@ export default function LinkedInProfile() {
     setSkills(skills.filter((skill) => skill !== skillToRemove))
   }
 
+
+  const editProfile = async () => {
+    const isProfileChanged = Object.keys(allChangedProfileFields).length > 0;
+    const isEducationChanged = Object.keys(allChangedEducationFields).length > 0;
+
+    if (!isProfileChanged && !isEducationChanged) {
+      toast.info("No fields were edited.");
+      return;
+    }
+
+    const profilePayload = isProfileChanged
+      ? mapProfileToBackendPayload(allChangedProfileFields)
+      : null;
+
+    const educationPayload = isEducationChanged
+      ? mapEducationToBackendPayload(allChangedEducationFields, educationID)
+      : null;
+
+    try {
+      let profileResponse = null;
+      let educationResponse = null;
+
+      if (profilePayload) {
+        profileResponse = await apiService.saveProfileDetails(profilePayload);
+        if (isResponseOk(profileResponse)) {
+          toast.success(profileResponse.data.message || "Profile updated successfully.");
+          setAllChangedProfileField({});
+        } else {
+          toast.error("Failed to update profile.");
+        }
+      }
+
+      if (educationPayload) {
+        educationResponse = await apiService.updateEducationDetails(educationPayload);
+        if (isResponseOk(educationResponse)) {
+          toast.success("Education details updated successfully.");
+          setAllChangedEducationFields({});
+        } else {
+          toast.error("Failed to update education.");
+        }
+      }
+
+      console.log("📦 profilePayload", profilePayload);
+      console.log("📦 educationPayload", educationPayload);
+      console.log("✅ Profile Response:", profileResponse?.data);
+      console.log("✅ Education Response:", educationResponse?.data);
+    } catch (error) {
+      console.error("❌ Error while saving data:", error);
+      toast.error("Something went wrong while saving.");
+    }
+  };
+
+
+  const handleImageUpload = async (file) => {
+  const formData = new FormData();
+  formData.append("image", file);
+  try {
+    const response = await apiService.uploadProfileImage(formData);
+    const { profileImage, contentType } = response.data;
+    setProfileImage(`data:${contentType};base64,${profileImage}`);
+  } catch (e) {
+    console.error("Upload failed", e);
+  }
+};
+
+
+
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6 bg-gray-50 min-h-screen">
       {/* Profile Header */}
@@ -246,23 +554,35 @@ export default function LinkedInProfile() {
         <div className="p-6">
           <div className="flex flex-col md:flex-row gap-6">
             <div className="flex-shrink-0">
-              <div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
-                <img
-                  src={profileDetails.profileImage || "/placeholder.svg"}
-                  alt={profileDetails.username}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.target.style.display = "none"
-                    e.target.nextSibling.style.display = "flex"
-                  }}
-                />
-                <div className="w-full h-full bg-blue-500 text-white text-2xl font-bold flex items-center justify-center hidden">
-                  {profileDetails.username
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")}
-                </div>
-              </div>
+              <div className="group relative w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+  <img
+    src={profileImage}
+    alt="Profile"
+    className="w-full h-full object-cover"
+  />
+
+  {/* Initials fallback */}
+  {!profileImage && (
+    <div className="absolute inset-0 bg-blue-500 text-white text-2xl font-bold flex items-center justify-center">
+      {profileDetails.username
+        .split(" ")
+        .map((n) => n[0])
+        .join("")}
+    </div>
+  )}
+
+  
+  <label className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
+    <UploadCloud className="w-8 h-8 text-white" />
+    <input
+      type="file"
+      accept="image/*"
+      onChange={handleImageUpload}
+      className="hidden"
+    />
+  </label>
+</div>
+
             </div>
 
             <div className="flex-1">
@@ -270,8 +590,8 @@ export default function LinkedInProfile() {
                 <div className="space-y-4">
                   <input
                     type="text"
-                    value={tempProfile.name}
-                    onChange={(e) => setTempProfile({ ...tempProfile, name: e.target.value })}
+                    value={tempProfile.username}
+                    onChange={(e) => setTempProfile({ ...tempProfile, username: e.target.value })}
                     placeholder="Full Name"
                     className="w-full px-3 py-2 text-2xl font-bold border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
@@ -284,8 +604,8 @@ export default function LinkedInProfile() {
                   />
                   <input
                     type="text"
-                    value={tempProfile.location}
-                    onChange={(e) => setTempProfile({ ...tempProfile, location: e.target.value })}
+                    value={tempProfile.country}
+                    onChange={(e) => setTempProfile({ ...tempProfile, country: e.target.value })}
                     placeholder="Location"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
@@ -294,8 +614,8 @@ export default function LinkedInProfile() {
                       onClick={handleSaveProfile}
                       className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                     >
-                      <Save className="w-4 h-4 mr-2" />
-                      Save
+                      <Check className="w-4 h-4 mr-2" />
+                      Apply Changes
                     </button>
                     <button
                       onClick={handleCancelProfile}
@@ -331,6 +651,139 @@ export default function LinkedInProfile() {
         </div>
       </div>
 
+
+      <div className="bg-white rounded-lg shadow-md border border-gray-200">
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-gray-900">Contact Information</h2>
+          <button
+            onClick={handleEditContact}
+            className="inline-flex items-center px-3 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+          >
+            <Edit3 className="w-4 h-4 mr-2" />
+            Edit
+          </button>
+        </div>
+        <div className="p-6">
+          {editingContact ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-gray-500" />
+                  <input
+                    type="email"
+                    placeholder="Email"
+                    value={tempProfile.email}
+                    onChange={(e) => setTempProfile({ ...tempProfile, email: e.target.value })}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Phone className="w-4 h-4 text-gray-500" />
+                  <input
+                    type="tel"
+                    placeholder="Phone"
+                    value={tempProfile.phone}
+                    onChange={(e) => setTempProfile({ ...tempProfile, phone: e.target.value })}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-gray-500" />
+                  <input
+                    type="url"
+                    placeholder="Website"
+                    value={tempProfile.websiteUrl}
+                    onChange={(e) => setTempProfile({ ...tempProfile, websiteUrl: e.target.value })}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Linkedin className="w-4 h-4 text-gray-500" />
+                  <input
+                    type="url"
+                    placeholder="LinkedIn"
+                    value={tempProfile.linkedinUrl}
+                    onChange={(e) => setTempProfile({ ...tempProfile, linkedinUrl: e.target.value })}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Github className="w-4 h-4 text-gray-500" />
+                  <input
+                    type="url"
+                    placeholder="GitHub"
+                    value={tempProfile.githubUrl}
+                    onChange={(e) => setTempProfile({ ...tempProfile, githubUrl: e.target.value })}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSaveContact}
+                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                >
+                  <Check className="w-4 h-4 mr-2" />
+                  Apply Changes
+                </button>
+                <button
+                  onClick={() => setEditingContact(false)}
+                  className="inline-flex items-center px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex items-center gap-2">
+                <Mail className="w-4 h-4 text-gray-500" />
+                <span className="text-gray-700">{profileDetails.email}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Phone className="w-4 h-4 text-gray-500" />
+                <span className="text-gray-700">{profileDetails.phone}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Globe className="w-4 h-4 text-gray-500" />
+                <a
+                  href={profileDetails.websiteUrl}
+                  className="text-blue-600 hover:underline"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {profileDetails.websiteUrl}
+                </a>
+              </div>
+              <div className="flex items-center gap-2">
+                <Linkedin className="w-4 h-4 text-gray-500" />
+                <a
+                  href={profileDetails.linkedinUrl}
+                  className="text-blue-600 hover:underline"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  LinkedIn Profile
+                </a>
+              </div>
+              <div className="flex items-center gap-2">
+                <Github className="w-4 h-4 text-gray-500" />
+                <a
+                  href={profileDetails.github}
+                  className="text-blue-600 hover:underline"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  GitHub Profile
+                </a>
+              </div>
+
+
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* About Section */}
       <div className="bg-white rounded-lg shadow-md border border-gray-200">
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
@@ -359,8 +812,8 @@ export default function LinkedInProfile() {
                   onClick={handleSaveAbout}
                   className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                 >
-                  <Save className="w-4 h-4 mr-2" />
-                  Save
+                  <Check className="w-4 h-4 mr-2" />
+                  Apply Changes
                 </button>
                 <button
                   onClick={() => setEditingAbout(false)}
@@ -455,8 +908,8 @@ export default function LinkedInProfile() {
                   onClick={handleSaveNewExperience}
                   className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                 >
-                  <Save className="w-4 h-4 mr-2" />
-                  Save
+                  <Check className="w-4 h-4 mr-2" />
+                  Apply Changes
                 </button>
                 <button
                   onClick={() => setAddingExperience(false)}
@@ -533,8 +986,8 @@ export default function LinkedInProfile() {
                       onClick={handleSaveExperience}
                       className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                     >
-                      <Save className="w-4 h-4 mr-2" />
-                      Save
+                      <Check className="w-4 h-4 mr-2" />
+                      Apply Changes
                     </button>
                     <button
                       onClick={() => setEditingExperience(null)}
@@ -608,13 +1061,7 @@ export default function LinkedInProfile() {
           {addingEducation && (
             <div className="border border-gray-200 rounded-lg p-4 space-y-4 bg-gray-50">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <input
-                  type="text"
-                  placeholder="School"
-                  value={tempEducation.school}
-                  onChange={(e) => setTempEducation({ ...tempEducation, school: e.target.value })}
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+
                 <input
                   type="text"
                   placeholder="Degree"
@@ -625,8 +1072,8 @@ export default function LinkedInProfile() {
                 <input
                   type="text"
                   placeholder="Field of Study"
-                  value={tempEducation.field}
-                  onChange={(e) => setTempEducation({ ...tempEducation, field: e.target.value })}
+                  value={tempEducation.collegeName}
+                  onChange={(e) => setTempEducation({ ...tempEducation, collegeName: e.target.value })}
                   className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
                 <div className="grid grid-cols-2 gap-2">
@@ -658,8 +1105,8 @@ export default function LinkedInProfile() {
                   onClick={handleSaveNewEducation}
                   className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                 >
-                  <Save className="w-4 h-4 mr-2" />
-                  Save
+                  <Check className="w-4 h-4 mr-2" />
+                  Apply Changes
                 </button>
                 <button
                   onClick={() => setAddingEducation(false)}
@@ -679,23 +1126,17 @@ export default function LinkedInProfile() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <input
                       type="text"
-                      placeholder="School"
-                      value={tempEducation.school}
-                      onChange={(e) => setTempEducation({ ...tempEducation, school: e.target.value })}
-                      className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Degree"
+                      placeholder="degree"
                       value={tempEducation.degree}
                       onChange={(e) => setTempEducation({ ...tempEducation, degree: e.target.value })}
                       className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
+
                     <input
                       type="text"
                       placeholder="Field of Study"
-                      value={tempEducation.field}
-                      onChange={(e) => setTempEducation({ ...tempEducation, field: e.target.value })}
+                      value={tempEducation.collegeName}
+                      onChange={(e) => setTempEducation({ ...tempEducation, collegeName: e.target.value })}
                       className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                     <div className="grid grid-cols-2 gap-2">
@@ -727,8 +1168,8 @@ export default function LinkedInProfile() {
                       onClick={handleSaveEducation}
                       className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                     >
-                      <Save className="w-4 h-4 mr-2" />
-                      Save
+                      <Check className="w-4 h-4 mr-2" />
+                      Apply Changes
                     </button>
                     <button
                       onClick={() => setEditingEducation(null)}
@@ -746,7 +1187,7 @@ export default function LinkedInProfile() {
                       <div>
                         <h3 className="font-semibold text-gray-900">{edu.school}</h3>
                         <p className="text-gray-600">
-                          {edu.degree} in {edu.field}
+                          {edu.degree} in {edu.collegeName}
                         </p>
                         <div className="flex items-center text-sm text-gray-500 mt-1">
                           <Calendar className="w-4 h-4 mr-1" />
@@ -816,139 +1257,26 @@ export default function LinkedInProfile() {
               </span>
             ))}
           </div>
+
+          <div class="flex gap-4">
+            <button onClick={editProfile} class="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zM16 16H8v-1h8v1z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              Save
+            </button>
+
+            <button class="flex items-center gap-2 bg-red-100 text-red-600 px-4 py-2 rounded hover:bg-red-200 transition">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path d="M3 12h15a4 4 0 1 1 0 8H7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M7 16l-4-4 4-4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              Discard
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Contact Information */}
-      <div className="bg-white rounded-lg shadow-md border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-gray-900">Contact Information</h2>
-          <button
-            onClick={handleEditContact}
-            className="inline-flex items-center px-3 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
-          >
-            <Edit3 className="w-4 h-4 mr-2" />
-            Edit
-          </button>
-        </div>
-        <div className="p-6">
-          {editingContact ? (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex items-center gap-2">
-                  <Mail className="w-4 h-4 text-gray-500" />
-                  <input
-                    type="email"
-                    placeholder="Email"
-                    value={tempProfile.email}
-                    onChange={(e) => setTempProfile({ ...tempProfile, email: e.target.value })}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <Phone className="w-4 h-4 text-gray-500" />
-                  <input
-                    type="tel"
-                    placeholder="Phone"
-                    value={tempProfile.phone}
-                    onChange={(e) => setTempProfile({ ...tempProfile, phone: e.target.value })}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <Globe className="w-4 h-4 text-gray-500" />
-                  <input
-                    type="url"
-                    placeholder="Website"
-                    value={tempProfile.website}
-                    onChange={(e) => setTempProfile({ ...tempProfile, website: e.target.value })}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <Linkedin className="w-4 h-4 text-gray-500" />
-                  <input
-                    type="url"
-                    placeholder="LinkedIn"
-                    value={tempProfile.linkedin}
-                    onChange={(e) => setTempProfile({ ...tempProfile, linkedin: e.target.value })}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <Github className="w-4 h-4 text-gray-500" />
-                  <input
-                    type="url"
-                    placeholder="GitHub"
-                    value={tempProfile.github}
-                    onChange={(e) => setTempProfile({ ...tempProfile, github: e.target.value })}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleSaveContact}
-                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  Save
-                </button>
-                <button
-                  onClick={() => setEditingContact(false)}
-                  className="inline-flex items-center px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-center gap-2">
-                <Mail className="w-4 h-4 text-gray-500" />
-                <span className="text-gray-700">{profileDetails.email}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Phone className="w-4 h-4 text-gray-500" />
-                <span className="text-gray-700">{profileDetails.phone}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Globe className="w-4 h-4 text-gray-500" />
-                <a
-                  href={profileDetails.websiteUrl}
-                  className="text-blue-600 hover:underline"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {profileDetails.websiteUrl}
-                </a>
-              </div>
-              <div className="flex items-center gap-2">
-                <Linkedin className="w-4 h-4 text-gray-500" />
-                <a
-                  href={profileDetails.linkedinUrl}
-                  className="text-blue-600 hover:underline"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  LinkedIn Profile
-                </a>
-              </div>
-              <div className="flex items-center gap-2">
-                <Github className="w-4 h-4 text-gray-500" />
-                <a
-                  href={profileDetails.github}
-                  className="text-blue-600 hover:underline"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  GitHub Profile
-                </a>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   )
 }

@@ -30,10 +30,6 @@ public class User {
     private String email;
     private LocalDateTime signupDate;
 
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
-    private List<Profile> profiles = new ArrayList<>();
-
-
     @PrePersist
     public void preSave(){
         this.signupDate = LocalDateTime.now();

@@ -1,42 +1,41 @@
 package org.BackEndApp.exception;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.BackEndApp.features.profile.model.response.ProfileResponse;
+import org.BackEndApp.features.profile.model.response.ServerResponse;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-
-import java.util.Map;
-
 @RestControllerAdvice
+@RequiredArgsConstructor
 @Slf4j
 public class GlobalExceptionHandler {
 
+    private final ExceptionRegistry exceptionRegistry;
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ServerResponse> handleAllExceptions(Exception ex) {
+        if (exceptionRegistry.isHandled(ex) || exceptionRegistry.isRootCauseHandled(ex)) {log.error("Handled Exception: ", ex);
+
+            ServerResponse serverResponse = new ServerResponse(
+                    "Request failed: " + ExceptionUtils.getRootCauseMessage(ex),
+                    "0001",
+                    null
+            );
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(serverResponse);
+        }
 
 
-    @ExceptionHandler(UserAlreadyExistsException.class)
-    public ResponseEntity<Map<String, String>> userAlreadyExistException(UserAlreadyExistsException exception) {
-        log.error("UserAlreadyExistsException: ", exception);
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", exception.getMessage(),
-                "errorCode", "1001"));
-    }
+        log.error("Unhandled Exception: ", ex);
 
-    @ExceptionHandler(ProfileSaveException.class)
-    public ResponseEntity<ProfileResponse> handleProfileSaveException(ProfileSaveException exception) {
-        log.error("ProfileSaveException: ", exception);
-
-        String rootCauseMessage = ExceptionUtils.getRootCauseMessage(exception);
-
-        ProfileResponse profileResponse = new ProfileResponse(
-                "Profile save failed: " + rootCauseMessage,
-                "0001",
+        ServerResponse fallbackResponse = new ServerResponse(
+                "Something went wrong: " + ExceptionUtils.getRootCauseMessage(ex),
+                "9999",
                 null
         );
 
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(profileResponse);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(fallbackResponse);
     }
-
-
-
 }
